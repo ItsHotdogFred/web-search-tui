@@ -17,6 +17,7 @@ const renderer = await createCliRenderer({ exitOnCtrlC: true });
 
 const splashscreenId = "splashscreen";
 const searchInputId = "searchInput";
+const resultTextId = "resultText";
 let searchResults: TextRenderable[] = [];
 let index = 0;
 let state = "splashscreen";
@@ -67,16 +68,30 @@ renderer.keyInput.on("keypress", async (key) => {
           break;
         }
         case "search": {
-
           const search = searchInput.value.trim();
           searchInput.value = "";
-          searchInput.placeholder = "Searching...";
-          const result = await exa.search(
-            search,
-            {
-              type: "instant"
-            }
-          );
+          let result: any;
+
+          if (search.startsWith("@wikipedia")) {
+            const res = await fetch(
+              "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(search.replace("@wikipedia", "").trim()),
+            );
+            result = await res.json();
+
+            renderer.root.remove(searchInputId);
+
+            renderer.root.add(
+              Text({ id: resultTextId, content: result.extract, attributes: TextAttributes.BOLD, fg: blue }),
+            );
+
+            state = "results";
+
+          } else {
+            searchInput.placeholder = "Searching...";
+            result = await exa.search(search, {
+              type: "instant",
+            });
+          }
 
           renderer.root.remove(searchInputId);
 
@@ -84,7 +99,7 @@ renderer.keyInput.on("keypress", async (key) => {
 
           if (results.length === 0) {
             renderer.root.add(
-              Text({ content: "No results found.", attributes: TextAttributes.BOLD, fg: blue }),
+              Text({ id: resultTextId, content: "No results found.", attributes: TextAttributes.BOLD, fg: blue }),
             );
             break;
           }
@@ -94,6 +109,7 @@ renderer.keyInput.on("keypress", async (key) => {
             const url = JSON.stringify(item.url ?? null, null, 2);
 
             searchResults.push(new TextRenderable(renderer, {
+              id: `searchResult-${index}`,
               content: `${index + 1}. Title: ${title}\nURL: ${url}`,
               attributes: TextAttributes.BOLD,
               fg: blue,
@@ -108,6 +124,9 @@ renderer.keyInput.on("keypress", async (key) => {
             selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
             selectedResult.fg = red;
           }
+
+          state = "results";
+
           break;
         }
         case "results": {
@@ -120,7 +139,8 @@ renderer.keyInput.on("keypress", async (key) => {
 
       break;
     }
-    case "up": {
+    case "up":
+    case "left": {
       index -= 1;
 
       if (index >= searchResults.length) {
@@ -143,6 +163,7 @@ renderer.keyInput.on("keypress", async (key) => {
 
       break;
     }
+    case "right":
     case "down": {
       index += 1;
       
@@ -162,6 +183,37 @@ renderer.keyInput.on("keypress", async (key) => {
       if (oldSelectedResult) {
         oldSelectedResult.attributes = TextAttributes.BOLD;
         oldSelectedResult.fg = blue;
+      }
+
+      break;
+    }
+    case "escape": {
+      if (state === "results") {
+        state = "search";
+
+        for (const result of searchResults) {
+          if (result.id) {
+            renderer.root.remove(result.id);
+          }
+        }
+
+        renderer.root.remove(resultTextId);
+
+          searchResults = [];
+          index = 0;
+
+          renderer.root.add(
+            Box(
+              { id: searchInputId, alignItems: "center", justifyContent: "center", flexGrow: 1 },
+              ASCIIFont({ font: "tiny", text: "TUIGLE" }),
+              Box({ borderStyle: "single", padding: 1 }, searchInput),
+            ),
+          );
+
+          searchInput.placeholder = "Search anything...";
+          searchInput.focus();
+
+        break;
       }
 
       break;
