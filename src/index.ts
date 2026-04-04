@@ -7,9 +7,15 @@ import {
   parseColor,
   InputRenderable,
   TextRenderable,
+  t,
+  fg 
 } from "@opentui/core";
 
 import Exa from "exa-js";
+
+import { CreateSplashScreen } from "./views/splashscreen";
+import { CreateSearchScreen } from "./views/search";
+import { CreateResultsScreen } from "./views/results";
 
 const exa = new Exa(process.env.EXA_API_KEY || "");
 
@@ -28,106 +34,22 @@ const red = parseColor("#FF7B72");
 
 const searchInput = new InputRenderable(renderer, {
   placeholder: "Search anything...",
-  width: process.stdout.columns - 5,
-  backgroundColor: "#0D1117",
+  width: process.stdout.columns - 60,
 });
 
-renderer.root.add(
-  Box(
-    { id: splashscreenId, alignItems: "center", justifyContent: "center", flexGrow: 1 },
-    Box(
-      { justifyContent: "center", alignItems: "flex-end" },
-      ASCIIFont({ font: "tiny", text: "WebTUI" }),
-      Text({ content: "Press ENTER to start", attributes: TextAttributes.DIM }),
-    ),
-  ),
-);
+CreateSplashScreen(renderer, splashscreenId, state)
 
 renderer.keyInput.on("keypress", async (key) => {
   switch (key.name) {
     case "return": {
       switch (state) {
         case "splashscreen": {
-          state = "search";
-
-          const splashscreenRoot = renderer.root.getRenderable(splashscreenId);
-
-          if (splashscreenRoot) {
-            renderer.root.remove(splashscreenId);
-          }
-
-          searchInput.focus();
-
-          renderer.root.add(
-            Box(
-              { id: searchInputId, alignItems: "center", justifyContent: "center", flexGrow: 1 },
-              ASCIIFont({ font: "tiny", text: "TUIGLE" }),
-              Box({ borderStyle: "single", padding: 1 }, searchInput),
-            ),
-          );
+          state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId)
 
           break;
         }
         case "search": {
-          const search = searchInput.value.trim();
-          searchInput.value = "";
-          let result: any;
-
-          if (search.startsWith("@wikipedia")) {
-            const res = await fetch(
-              "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(search.replace("@wikipedia", "").trim()),
-            );
-            result = await res.json();
-
-            renderer.root.remove(searchInputId);
-
-            renderer.root.add(
-              Text({ id: resultTextId, content: result.extract, attributes: TextAttributes.BOLD, fg: blue }),
-            );
-
-            state = "results";
-
-          } else {
-            searchInput.placeholder = "Searching...";
-            result = await exa.search(search, {
-              type: "instant",
-            });
-          }
-
-          renderer.root.remove(searchInputId);
-
-          const results = result.results ?? [];
-
-          if (results.length === 0) {
-            renderer.root.add(
-              Text({ id: resultTextId, content: "No results found.", attributes: TextAttributes.BOLD, fg: blue }),
-            );
-            break;
-          }
-
-          for (const [index, item] of results.entries()) {
-            const title = JSON.stringify(item.title ?? null, null, 2);
-            const url = JSON.stringify(item.url ?? null, null, 2);
-
-            searchResults.push(new TextRenderable(renderer, {
-              id: `searchResult-${index}`,
-              content: `${index + 1}. Title: ${title}\nURL: ${url}`,
-              attributes: TextAttributes.BOLD,
-              fg: blue,
-            }));
-
-            renderer.root.add(searchResults[index]);
-          }
-
-          const selectedResult = searchResults[index];
-
-          if (selectedResult) {
-            selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-            selectedResult.fg = red;
-          }
-
-          state = "results";
-
+          state = await CreateResultsScreen(renderer, searchInput, searchInputId, resultTextId, exa, searchResults, index)
           break;
         }
         case "results": {
@@ -189,34 +111,35 @@ renderer.keyInput.on("keypress", async (key) => {
       break;
     }
     case "escape": {
-      if (state === "results") {
-        state = "search";
+      if (state !== "splashscreen") {
+        searchInput.value = "";
+        searchInput.placeholder = "";
+
+        renderer.root.remove(searchInputId);
+        renderer.root.remove(resultTextId);
+        renderer.root.remove(splashscreenId);
 
         for (const result of searchResults) {
           if (result.id) {
             renderer.root.remove(result.id);
           }
         }
+      
 
-        renderer.root.remove(resultTextId);
+      searchResults = [];
+      index = 0;
 
-          searchResults = [];
-          index = 0;
-
-          renderer.root.add(
-            Box(
-              { id: searchInputId, alignItems: "center", justifyContent: "center", flexGrow: 1 },
-              ASCIIFont({ font: "tiny", text: "TUIGLE" }),
-              Box({ borderStyle: "single", padding: 1 }, searchInput),
-            ),
-          );
-
-          searchInput.placeholder = "Search anything...";
-          searchInput.focus();
-
-        break;
+      process.stdout.write('\x1b[2J\x1b[H');
+      if (state === "results") {
+        state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId);
+        searchInput.focus();
+        searchInput.placeholder = "Search anything...";
+      } else if (state === "search") {
+        state = CreateSplashScreen(renderer, splashscreenId, state)
+        searchInput.blur()
       }
 
+    }
       break;
     }
 
