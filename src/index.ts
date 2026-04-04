@@ -28,7 +28,8 @@ const red = parseColor("#FF7B72");
 
 const searchInput = new InputRenderable(renderer, {
   placeholder: "Search anything...",
-  width: process.stdout.columns,
+  width: process.stdout.columns - 5,
+  backgroundColor: "#0D1117",
 });
 
 renderer.root.add(
