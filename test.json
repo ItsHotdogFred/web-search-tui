@@ -1,0 +1,27 @@
+{
+    "root": {
+        "ascii": {
+            "text": "Look at this cool test",
+            "font": "tiny"
+        },
+        "blank": "",
+        "blank2": "",
+        "ascii2": {
+            "text": "It's very cool",
+            "font": "tiny"
+        },
+        "text": {
+            "text": "I just made it even better with cooool colours!!!",
+            "colour": "#FFFFF"
+        },
+        "blank3": "",
+        "input": {
+            "placeholder": "Type something...",
+            "text": "This is some example text which has already been entered in"
+        },
+        "input2": {
+            "placeholder": "It's so easy with my system now",
+            "text": ""
+        }
+    }
+}

@@ -18,7 +18,7 @@ export function CreateSearchScreen(renderer: any, splashscreenId : any, searchIn
     renderer.root.add(
     Box(
         { backgroundColor: "#0a0a0a",id: searchInputId, alignItems: "center", justifyContent: "center", flexGrow: 1, flexDirection: "column", gap: 2 },
-        ASCIIFont({ font: "tiny", text: "TUIGLE" }),
+        ASCIIFont({ font: "tiny", text: "OpenSearch" }),
         Box(
         {gap: 1},
         Text({
