@@ -1,5 +1,5 @@
 // src/info/helpinfo.ts
-import { MarkdownRenderable, ScrollBoxRenderable,SyntaxStyle, RGBA, getTreeSitterClient } from "@opentui/core";
+import { MarkdownRenderable, ScrollBoxRenderable, SyntaxStyle, RGBA, getTreeSitterClient, getLinkId, MouseButton } from "@opentui/core";
 
 let treeSitterClientPromise: Promise<any | null> | null = null;
 
@@ -21,11 +21,60 @@ async function getInitializedTreeSitterClient() {
   return treeSitterClientPromise;
 }
 
+type CreateMarkdownOptions = {
+  width?: number | string;
+  height?: number | string;
+  baseUrl?: string;
+  onLinkClick?: (url: string) => void | Promise<void>;
+};
+
+function getClickedLinkUrl(renderer: any, x: number, y: number) {
+  if (!renderer.lib?.linkGetUrl) {
+    return null;
+  }
+
+  const buffers = [
+    renderer.currentRenderBuffer,
+    renderer.nextRenderBuffer,
+  ].filter(Boolean);
+
+  const offsets = [
+    [0, 0],
+    [-1, 0],
+    [1, 0],
+  ] as const;
+
+  for (const [offsetX, offsetY] of offsets) {
+    const cellX = x + offsetX;
+    const cellY = y + offsetY;
+
+    for (const buffer of buffers) {
+      if (cellX < 0 || cellY < 0 || cellX >= buffer.width || cellY >= buffer.height) {
+        continue;
+      }
+
+      const attributes = buffer.buffers.attributes[cellY * buffer.width + cellX];
+
+      if (attributes === undefined) {
+        continue;
+      }
+
+      const linkId = getLinkId(attributes);
+
+      if (linkId) {
+        return renderer.lib.linkGetUrl(linkId) as string;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function createMarkdown(
   renderer: any,
   content: string,
   id: string,
-  options?: { width?: number | string; height?: number | string },
+  options?: CreateMarkdownOptions,
 ) {
   const syntaxStyle = SyntaxStyle.fromStyles({
     keyword: { fg: RGBA.fromHex("#FF7B72"), bold: true },
@@ -76,7 +125,7 @@ export async function createMarkdown(
     bg: RGBA.fromHex("#0D1117"),
     conceal: true,
   };
-
+    
   if (treeSitterClient) {
     markdownOptions.treeSitterClient = treeSitterClient;
   }
@@ -91,6 +140,39 @@ export async function createMarkdown(
     width: (options?.width ?? "100%") as number | "auto" | `${number}%`,
     height: (options?.height ?? "100%") as number | "auto" | `${number}%`,
   });
+
+  const onLinkClick = options?.onLinkClick;
+
+  if (onLinkClick) {
+    scrollbox.onMouseUp = async (event) => {
+      if (event.button !== MouseButton.LEFT) {
+        return;
+      }
+
+      const href = getClickedLinkUrl(renderer, event.x, event.y);
+
+      if (!href) {
+        return;
+      }
+
+      let url: URL;
+
+      try {
+        url = new URL(href, options.baseUrl);
+      } catch {
+        return;
+      }
+
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      await onLinkClick(url.toString());
+    };
+  }
 
   const markdown = new MarkdownRenderable(renderer, markdownOptions);
 

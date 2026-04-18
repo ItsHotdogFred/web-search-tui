@@ -25,6 +25,15 @@ type AiSummaryState = {
   height: number;
 };
 
+type NativeSearchResult = {
+  file: string;
+  similarity: number;
+};
+
+function stripFileExtension(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "");
+}
+
 export async function CreateResultsScreen(
   renderer: any,
   searchInput: any,
@@ -40,6 +49,14 @@ export async function CreateResultsScreen(
   if (search === "") {
     return "search"
   }
+  const normalizedSearch = search.startsWith("@web")
+    ? search.replace(/^@web\b/, "").trim()
+    : search;
+
+  if (normalizedSearch === "") {
+    return "search";
+  }
+
   searchInput.value = "";
   let result: any;
 
@@ -81,9 +98,65 @@ export async function CreateResultsScreen(
     renderer.root.remove(searchInputId)
     await createMarkdown(renderer, text, "readme")
     return "results";
+  } else if (search.startsWith("@native")) {
+    aiSummary.content = "";
+    aiSummary.height = 0;
+    searchInput.placeholder = "Searching...";
+
+    const nativeQuery = search
+      .replace(/^@native\b/, "")
+      .trim();
+
+    const res = await fetch("http://localhost:3000/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search: nativeQuery }),
+    });
+    const nativeResults = (await res.json()) as NativeSearchResult[];
+
+    renderer.root.remove(searchInputId);
+
+    if (nativeResults.length === 0) {
+      renderer.root.add(
+        Text({
+          id: resultTextId,
+          content: "No results found.",
+          attributes: TextAttributes.BOLD,
+          fg: blue,
+        }),
+      );
+
+      return "results";
+    }
+
+    for (const [nativeIndex, item] of nativeResults.entries()) {
+      const nativeId = stripFileExtension(item.file);
+      searchUrls.push(`native:${nativeId}`);
+
+      searchResults.push(
+        new TextRenderable(renderer, {
+          id: `searchResult-${nativeIndex}`,
+          content: `${nativeIndex + 1}. File: ${item.file}\nSimilarity: ${item.similarity.toFixed(3)}`,
+          attributes: TextAttributes.BOLD,
+          fg: blue,
+        }),
+      );
+
+      renderer.root.add(searchResults[nativeIndex]);
+    }
+
+    const selectedResult = searchResults[index];
+
+    if (selectedResult) {
+      selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
+      selectedResult.fg = red;
+    }
+
+    return "results";
+
   } else {
     searchInput.placeholder = "Searching...";
-    result = await exa.search(search, {
+    result = await exa.search(normalizedSearch, {
       type: "fast",
     });
   }
@@ -93,7 +166,7 @@ export async function CreateResultsScreen(
     messages: [
       { role: "system" , content: "You are an AI which is designed to summarize web searches, ensure summarizes are only around 3 - 5 sentences long and provide the detail needed to satisfy the users request. Also ensure you cite the websites you used for the data."},
       { role: "system", content: "Here is the data from the search request:" + result},
-      { role: "user", content: search}
+      { role: "user", content: normalizedSearch.trim()}
     ]
   })
 

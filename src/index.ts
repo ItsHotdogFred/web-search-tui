@@ -4,6 +4,7 @@ import {
   parseColor,
   InputRenderable,
   TextRenderable,
+  Text,
 } from "@opentui/core";
 
 import Exa from "exa-js";
@@ -12,7 +13,7 @@ import { CreateSplashScreen } from "./views/splashscreen";
 import { CreateSearchScreen } from "./views/search";
 import { CreateResultsScreen, ResumeResultsScreen } from "./views/results";
 import { createMarkdown } from "./components/markdown";
-import { CreateTestScreen } from "./views/test";
+import { CreateNativeScreen } from "./views/native";
 
 import data from "../test.json"
 
@@ -20,23 +21,26 @@ export const history: string[] = []
 let historyIndex = 0;
 let searchTypeIndex = 0;
 const searchTypeList = [
+  "@web",
   "@help",
-  "@wikipedia"
+  "@wikipedia",
+  "@native",
 ]
 
 const exa = new Exa(process.env.EXA_API_KEY || "");
 
-const renderer = await createCliRenderer({ exitOnCtrlC: true });
+const renderer = await createCliRenderer({ exitOnCtrlC: true, useMouse: true });
 
 const splashscreenId = "splashscreen";
 const searchInputId = "searchInput";
 const resultTextId = "resultText";
 const pagescreenId = "pagescreen"
+const nativeResultsId = "native-results"
 let searchResults: TextRenderable[] = [];
 let searchUrls: string[] = [];
 let searchIndex = 0;
 const aiSummary = { content: "", height: 0 };
-let state = "test";
+let state = "search";
 
 const blue = parseColor("79B8FF");
 const red = parseColor("#FF7B72");
@@ -51,6 +55,17 @@ process.stdout.on("resize", () => {
   searchInput.width = Math.max(process.stdout.columns - 60, 20);
 });
 
+async function openMarkdownPage(url: string) {
+  const markdownUrl = "https://markdown.gonna.party/?url=" + encodeURIComponent(url);
+  const res = await fetch(markdownUrl);
+  const text = await res.text();
+
+  await createMarkdown(renderer, text, pagescreenId, {
+    baseUrl: url,
+    onLinkClick: openMarkdownPage,
+  });
+}
+
 
 switch (state) {
   case "splashscreen": {
@@ -59,11 +74,11 @@ switch (state) {
     break;
   }
   case "search": {
-    CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId)
+    CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId, searchTypeList[searchTypeIndex] || "@web")
     break;
   }
-  case "test": {
-    state = CreateTestScreen(renderer, "", "test", data)
+  case "native": {
+    state = CreateNativeScreen(renderer, "", "native", data)
     break;
   }
 
@@ -77,21 +92,8 @@ renderer.keyInput.on("keypress", async (key) => {
 
     case "tab": {
       if (state == "search") {
-        const value = searchInput.value
-        const currentIndex = searchTypeList.findIndex((type) => value.startsWith(type));
-
-        if (currentIndex >= 0) {
-          const currentType = searchTypeList[currentIndex];
-          const nextIndex = (currentIndex + 1) % searchTypeList.length;
-          const nextType = searchTypeList[nextIndex];
-
-          if (currentType && nextType) {
-            searchInput.value = searchInput.value.replace(currentType, nextType);
-          }
-        } else {
-          searchTypeIndex = 0
-          searchInput.value = searchTypeList[searchTypeIndex] + " " + searchInput.value
-        }
+        searchTypeIndex = (searchTypeIndex + 1) % searchTypeList.length;
+        CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId, searchTypeList[searchTypeIndex] || "@web")
       }
       break;
     }
@@ -99,28 +101,45 @@ renderer.keyInput.on("keypress", async (key) => {
     case "return": {
       switch (state) {
         case "splashscreen": {
-          state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId)
+          state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId, searchTypeList[searchTypeIndex] || "@web")
 
           break;
         }
         case "search": {
-          history.push(searchInput.value)
+          const inputValue = searchInput.value;
+          const hasExplicitType = searchTypeList.some((type) => inputValue.startsWith(type)) || inputValue.startsWith("@wiki");
+          const activeType = searchTypeList[searchTypeIndex] || "@web";
+          const shouldApplyMode = !hasExplicitType && inputValue.trim() !== "" && activeType !== "@web";
+          const effectiveValue = shouldApplyMode ? `${activeType} ${inputValue}` : inputValue;
+
+          history.push(effectiveValue)
           historyIndex = history.length
+          searchInput.value = effectiveValue;
           state = await CreateResultsScreen(renderer, searchInput, searchInputId, resultTextId, exa, searchResults, searchUrls, searchIndex, aiSummary)
           break;
         }
         case "results": {
           state = "page"
-          const url = "https://markdown.gonna.party/?url=" + searchUrls[searchIndex]
-          const res = await fetch(url)
-          const text = await res.text()
+          const selectedUrl = searchUrls[searchIndex]
           renderer.root.remove("ai-generated")
+          renderer.root.remove(nativeResultsId)
           for (const result of searchResults) {
             if (result.id) {
               renderer.root.remove(result.id);
             }
           }
-          await createMarkdown(renderer, text, pagescreenId)
+
+          if (selectedUrl?.startsWith("native:")) {
+            const nativeId = selectedUrl.replace("native:", "");
+            const nativeViewUrl = new URL("http://localhost:3000/api/view/")
+            nativeViewUrl.searchParams.set("page", nativeId)
+            const res = await fetch(nativeViewUrl)
+            const nativeJson = await res.json()
+            CreateNativeScreen(renderer, pagescreenId, "native", nativeJson)
+          } else if (selectedUrl) {
+            await openMarkdownPage(selectedUrl)
+          }
+
           // renderer.root.add(Text({
           //   id : pagescreenId,
           //   content: text 
@@ -240,6 +259,7 @@ renderer.keyInput.on("keypress", async (key) => {
         renderer.root.remove(pagescreenId)
         renderer.root.remove("readme")
         renderer.root.remove("ai-generated")
+        renderer.root.remove(nativeResultsId)
 
         for (const result of searchResults) {
           if (result.id) {
@@ -253,7 +273,7 @@ renderer.keyInput.on("keypress", async (key) => {
         searchResults = [];
         searchUrls = [];
         searchIndex = 0;
-        state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId);
+        state = CreateSearchScreen(renderer, splashscreenId, searchInput, searchInputId, searchTypeList[searchTypeIndex] || "@web");
         searchInput.focus();
         searchInput.placeholder = "Search anything...";
       } else if (state === "search") {
