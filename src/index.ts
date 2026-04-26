@@ -39,11 +39,11 @@ const nativeResultsId = "native-results"
 let searchResults: TextRenderable[] = [];
 let searchUrls: string[] = [];
 let searchIndex = 0;
-const aiSummary = { content: "", height: 0 };
+const aiSummary = { content: "", height: 0, query: "" };
 let state = "search";
 
-const blue = parseColor("79B8FF");
-const red = parseColor("#FF7B72");
+const resultDefault = parseColor("#E8EAED");
+const resultSelected = parseColor("#F28B82");
 
 
 const searchInput = new InputRenderable(renderer, {
@@ -122,6 +122,10 @@ renderer.keyInput.on("keypress", async (key) => {
           state = "page"
           const selectedUrl = searchUrls[searchIndex]
           renderer.root.remove("ai-generated")
+          renderer.root.remove("search-query")
+          renderer.root.remove("results-meta")
+          renderer.root.remove("results-divider")
+          renderer.root.remove("results-scrollbox")
           renderer.root.remove(nativeResultsId)
           for (const result of searchResults) {
             if (result.id) {
@@ -165,15 +169,15 @@ renderer.keyInput.on("keypress", async (key) => {
           const selectedResult = searchResults[searchIndex];
 
           if (selectedResult) {
-        selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-        selectedResult.fg = red;
+        selectedResult.attributes = TextAttributes.BOLD;
+        selectedResult.fg = resultSelected;
           }
 
           const oldSelectedResult = searchResults[searchIndex + 1];
 
           if (oldSelectedResult) {
-        oldSelectedResult.attributes = TextAttributes.BOLD;
-        oldSelectedResult.fg = blue;
+        oldSelectedResult.attributes = 0;
+        oldSelectedResult.fg = resultDefault;
           }
           break;
         }
@@ -214,15 +218,15 @@ renderer.keyInput.on("keypress", async (key) => {
           const selectedResult = searchResults[searchIndex];
           
           if (selectedResult) {
-            selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-            selectedResult.fg = red;
+            selectedResult.attributes = TextAttributes.BOLD;
+            selectedResult.fg = resultSelected;
           }
           
           const oldSelectedResult = searchResults[searchIndex - 1];
 
           if (oldSelectedResult) {
-            oldSelectedResult.attributes = TextAttributes.BOLD;
-            oldSelectedResult.fg = blue;
+            oldSelectedResult.attributes = 0;
+            oldSelectedResult.fg = resultDefault;
           }
 
           break;
@@ -259,6 +263,10 @@ renderer.keyInput.on("keypress", async (key) => {
         renderer.root.remove(pagescreenId)
         renderer.root.remove("readme")
         renderer.root.remove("ai-generated")
+        renderer.root.remove("search-query")
+        renderer.root.remove("results-meta")
+        renderer.root.remove("results-divider")
+        renderer.root.remove("results-scrollbox")
         renderer.root.remove(nativeResultsId)
 
         for (const result of searchResults) {

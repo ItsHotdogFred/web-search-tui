@@ -1,5 +1,5 @@
 import {
-  Text,
+  ScrollBoxRenderable,
   TextAttributes,
   TextRenderable,
   parseColor,
@@ -16,13 +16,19 @@ const client = new OpenAI({
 });
 
 const model = "x-ai/grok-4.20"
+const ENABLE_AI_SUMMARY = false;
 
-const blue = parseColor("79B8FF");
-const red = parseColor("#FF7B72");
+const accent = parseColor("#8AB4F8");
+const textPrimary = parseColor("#E8EAED");
+const textSecondary = parseColor("#9AA0A6");
+const selected = parseColor("#F28B82");
+const divider = parseColor("#5F6368");
+const resultsScrollboxId = "results-scrollbox";
 
 type AiSummaryState = {
   content: string;
-  height: number;
+  height: number | "auto";
+  query: string;
 };
 
 type NativeSearchResult = {
@@ -30,9 +36,123 @@ type NativeSearchResult = {
   similarity: number;
 };
 
+function getWrappedContentHeight(content: string, width: number) {
+  const safeWidth = Math.max(width, 20);
+
+  return content.split("\n").reduce((total, line) => {
+    const lineLength = line.length === 0 ? 1 : line.length;
+    return total + Math.ceil(lineLength / safeWidth);
+  }, 0);
+}
+
 function stripFileExtension(fileName: string) {
   return fileName.replace(/\.[^.]+$/, "");
 }
+
+function getResultDomain(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function cleanDescription(description: string, maxLength = 240) {
+  const normalized = description.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return normalized.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+function createResultBlock(index: number, title: string, description: string, url: string) {
+  const domain = getResultDomain(url);
+
+  return `${String(index + 1).padStart(2, "0")}  ${domain}
+${title}
+${cleanDescription(description)}
+${url}`;
+}
+
+function renderSearchQuery(renderer: any, query: string) {
+  const existingQuery = renderer.root.getRenderable("search-query");
+  if (existingQuery) {
+    renderer.root.remove("search-query");
+  }
+
+  renderer.root.add(
+    new TextRenderable(renderer, {
+      id: "search-query",
+      content: `SEARCH RESULTS\n${query}`,
+      attributes: TextAttributes.BOLD,
+      fg: accent,
+    }),
+  );
+
+  const queryRenderable = renderer.root.getRenderable("search-query");
+  if (queryRenderable) {
+    queryRenderable.x = 1;
+    queryRenderable.y = 1;
+  }
+}
+
+function renderResultsMeta(renderer: any, content: string, y: number) {
+  const existingMeta = renderer.root.getRenderable("results-meta");
+  if (existingMeta) {
+    renderer.root.remove("results-meta");
+  }
+
+  renderer.root.add(
+    new TextRenderable(renderer, {
+      id: "results-meta",
+      content,
+      fg: textSecondary,
+    }),
+  );
+
+  const metaRenderable = renderer.root.getRenderable("results-meta");
+  if (metaRenderable) {
+    metaRenderable.x = 1;
+    metaRenderable.y = y;
+  }
+}
+
+function renderDivider(renderer: any, y: number) {
+  const existingDivider = renderer.root.getRenderable("results-divider");
+  if (existingDivider) {
+    renderer.root.remove("results-divider");
+  }
+
+  renderer.root.add(
+    new TextRenderable(renderer, {
+      id: "results-divider",
+      content: "-".repeat(Math.max(process.stdout.columns - 2, 20)),
+      fg: divider,
+    }),
+  );
+
+  const dividerRenderable = renderer.root.getRenderable("results-divider");
+  if (dividerRenderable) {
+    dividerRenderable.x = 1;
+    dividerRenderable.y = y;
+  }
+}
+
+function positionResults(searchResults: TextRenderable[], startY: number) {
+  let currentY = startY;
+
+  for (const result of searchResults) {
+    result.x = 1;
+    result.y = currentY;
+    currentY += getWrappedContentHeight(String(result.content), Math.max(process.stdout.columns - 4, 20)) + 2;
+  }
+
+  return currentY;
+}
+
+
 
 export async function CreateResultsScreen(
   renderer: any,
@@ -49,6 +169,7 @@ export async function CreateResultsScreen(
   if (search === "") {
     return "search"
   }
+  aiSummary.query = search;
   const normalizedSearch = search.startsWith("@web")
     ? search.replace(/^@web\b/, "").trim()
     : search;
@@ -72,22 +193,32 @@ export async function CreateResultsScreen(
     result = await res.json();
 
     renderer.root.remove(searchInputId);
+    renderSearchQuery(renderer, aiSummary.query);
 
     renderer.root.add(
-      Text({
+      new TextRenderable(renderer, {
         id: resultTextId,
         content: result.extract,
         attributes: TextAttributes.BOLD,
-        fg: blue,
+        fg: textPrimary,
       }),
     );
+
+    const resultText = renderer.root.getRenderable(resultTextId);
+    if (resultText) {
+      resultText.x = 1;
+      resultText.y = 5;
+    }
 
     return "results";
   } else if (search.startsWith("@help")) {
     aiSummary.content = "";
     aiSummary.height = 0;
     renderer.root.remove(searchInputId)
-    await createMarkdown(renderer, helpcontent, "readme")
+    renderSearchQuery(renderer, aiSummary.query);
+    renderResultsMeta(renderer, "Help and usage", 4);
+    renderDivider(renderer, 5);
+    await createMarkdown(renderer, helpcontent, "readme", { x: 0, y: 6, height: Math.max(process.stdout.rows - 6, 5) })
     return "results";
   } else if (search.startsWith("http")) {
     aiSummary.content = "";
@@ -96,7 +227,10 @@ export async function CreateResultsScreen(
     const res = await fetch(url)
     const text = await res.text()
     renderer.root.remove(searchInputId)
-    await createMarkdown(renderer, text, "readme")
+    renderSearchQuery(renderer, aiSummary.query);
+    renderResultsMeta(renderer, "Page preview", 4);
+    renderDivider(renderer, 5);
+    await createMarkdown(renderer, text, "readme", { x: 0, y: 6, height: Math.max(process.stdout.rows - 6, 5) })
     return "results";
   } else if (search.startsWith("@native")) {
     aiSummary.content = "";
@@ -115,19 +249,36 @@ export async function CreateResultsScreen(
     const nativeResults = (await res.json()) as NativeSearchResult[];
 
     renderer.root.remove(searchInputId);
+    renderSearchQuery(renderer, aiSummary.query);
 
     if (nativeResults.length === 0) {
       renderer.root.add(
-        Text({
+        new TextRenderable(renderer, {
           id: resultTextId,
           content: "No results found.",
           attributes: TextAttributes.BOLD,
-          fg: blue,
+          fg: textPrimary,
         }),
       );
 
+      const resultText = renderer.root.getRenderable(resultTextId);
+      if (resultText) {
+        resultText.x = 1;
+        resultText.y = 6;
+      }
+
       return "results";
     }
+
+    renderResultsMeta(renderer, `${nativeResults.length} native matches`, 4);
+    renderDivider(renderer, 5);
+    const resultsScrollbox = new ScrollBoxRenderable(renderer, {
+      id: resultsScrollboxId,
+      width: "100%",
+      height: Math.max(process.stdout.rows - 7, 5),
+    })
+    resultsScrollbox.x = 1
+    resultsScrollbox.y = 6
 
     for (const [nativeIndex, item] of nativeResults.entries()) {
       const nativeId = stripFileExtension(item.file);
@@ -136,21 +287,26 @@ export async function CreateResultsScreen(
       searchResults.push(
         new TextRenderable(renderer, {
           id: `searchResult-${nativeIndex}`,
-          content: `${nativeIndex + 1}. File: ${item.file}\nSimilarity: ${item.similarity.toFixed(3)}`,
-          attributes: TextAttributes.BOLD,
-          fg: blue,
+          content: `${String(nativeIndex + 1).padStart(2, "0")}  ${nativeId}\n${item.file}\nSimilarity score ${item.similarity.toFixed(3)}`,
+          fg: textPrimary,
         }),
       );
+    }
 
-      renderer.root.add(searchResults[nativeIndex]);
+    positionResults(searchResults, 1);
+
+    for (const result of searchResults) {
+      resultsScrollbox.add(result);
     }
 
     const selectedResult = searchResults[index];
 
     if (selectedResult) {
-      selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-      selectedResult.fg = red;
+      selectedResult.attributes = TextAttributes.BOLD;
+      selectedResult.fg = selected;
     }
+
+    renderer.root.add(resultsScrollbox)
 
     return "results";
 
@@ -158,78 +314,110 @@ export async function CreateResultsScreen(
     searchInput.placeholder = "Searching...";
     result = await exa.search(normalizedSearch, {
       type: "fast",
+      contents: {
+        summary: true,
+      },
     });
   }
 
-  const completion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system" , content: "You are an AI which is designed to summarize web searches, ensure summarizes are only around 3 - 5 sentences long and provide the detail needed to satisfy the users request. Also ensure you cite the websites you used for the data."},
-      { role: "system", content: "Here is the data from the search request:" + result},
-      { role: "user", content: normalizedSearch.trim()}
-    ]
-  })
-
   renderer.root.remove(searchInputId);
+  renderSearchQuery(renderer, aiSummary.query);
+  aiSummary.content = "";
+  aiSummary.height = 0;
+  let resultsStartY = 7;
 
-  // renderer.root.add(Text({
-  //   id: resultTextId,
-  //   content: (completion.choices[0]?.message?.content ?? "No response generated.") + "\n Generated by: " + model
-  // }))
-  const completionText =
-    (completion.choices[0]?.message?.content ?? "No response generated.") +
-    "\n Generated by: " +
-    model;
-  const completionLines = completionText.split("\n").length;
-  const markdownHeight = Math.min(
-    Math.max(completionLines + 2, 8),
-    Math.max(Math.floor(process.stdout.rows * 0.4), 10),
-  );
+  if (ENABLE_AI_SUMMARY) {
+    const completion = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system" , content: "You are an AI which is designed to summarize web searches, ensure summarizes are only around 3 - 5 sentences long and provide the detail needed to satisfy the users request. Also ensure you cite the websites you used for the data."},
+        { role: "system", content: "Here is the data from the search request:" + result},
+        { role: "user", content: normalizedSearch.trim()}
+      ]
+    })
 
-  aiSummary.content = completionText;
-  aiSummary.height = markdownHeight;
+    const completionText =
+      (completion.choices[0]?.message?.content ?? "No response generated.") +
+      "\n Generated by: " +
+      model;
+    const summaryWidth = Math.max(process.stdout.columns - 4, 20);
+    const summaryHeight = getWrappedContentHeight(completionText, summaryWidth) + 1;
 
-  await createMarkdown(renderer, completionText, "ai-generated",  {
-    height: markdownHeight,
-  });
+    aiSummary.content = completionText;
+    aiSummary.height = summaryHeight;
+
+    await createMarkdown(renderer, completionText, "ai-generated",  {
+      x: 0,
+      y: 7,
+      width: "100%",
+      height: aiSummary.height,
+    });
+
+    resultsStartY = 7 + Number(aiSummary.height) + 1;
+  }
 
   const results = result.results ?? [];
+  renderResultsMeta(renderer, `${results.length} web results`, 4);
+  renderDivider(renderer, 5);
+  const scrollboxY = ENABLE_AI_SUMMARY && aiSummary.content ? 7 + Number(aiSummary.height) + 1 : 6;
+  const resultsScrollbox = new ScrollBoxRenderable(renderer, {
+    id: resultsScrollboxId,
+    width: "100%",
+    height: Math.max(process.stdout.rows - scrollboxY - 1, 5),
+  })
+  resultsScrollbox.x = 1
+  resultsScrollbox.y = scrollboxY
 
   if (results.length === 0) {
     renderer.root.add(
-      Text({
+      new TextRenderable(renderer, {
         id: resultTextId,
         content: "No results found.",
         attributes: TextAttributes.BOLD,
-        fg: blue,
+        fg: textPrimary,
       }),
     );
+
+    const resultText = renderer.root.getRenderable(resultTextId);
+    if (resultText) {
+      resultText.x = 1;
+      resultText.y = scrollboxY;
+    }
   }
 
   for (const [index, item] of results.entries()) {
-    const title = JSON.stringify(item.title ?? null, null, 2);
-    const url = JSON.stringify(item.url ?? null, null, 2);
+    const title = item.title ?? "Untitled";
+    const url = item.url ?? "";
+    const description =
+      item.summary?.trim() ||
+      item.text?.trim() ||
+      "No description available.";
 
     searchUrls.push(item.url);
 
     searchResults.push(
       new TextRenderable(renderer, {
         id: `searchResult-${index}`,
-        content: `${index + 1}. Title: ${title}\nURL: ${url}`,
-        attributes: TextAttributes.BOLD,
-        fg: blue,
+        content: createResultBlock(index, title, description, url),
+        fg: textPrimary,
       }),
     );
+  }
 
-    renderer.root.add(searchResults[index]);
+  positionResults(searchResults, 1);
+
+  for (const result of searchResults) {
+    resultsScrollbox.add(result);
   }
 
   const selectedResult = searchResults[index];
 
   if (selectedResult) {
-    selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-    selectedResult.fg = red;
+    selectedResult.attributes = TextAttributes.BOLD;
+    selectedResult.fg = selected;
   }
+
+  renderer.root.add(resultsScrollbox)
 
   return "results";
 }
@@ -240,24 +428,48 @@ export async function ResumeResultsScreen(
   index: number,
   aiSummary: AiSummaryState,
 ) {
-  if (aiSummary.content) {
-    await createMarkdown(renderer, aiSummary.content, "ai-generated", {
-      height: aiSummary.height,
-    });
+  if (aiSummary.query) {
+    renderSearchQuery(renderer, aiSummary.query);
   }
 
+  let resultsStartY = 7;
+  renderResultsMeta(renderer, `${searchResults.length} results`, 4);
+  if (aiSummary.content) {
+    await createMarkdown(renderer, aiSummary.content, "ai-generated", {
+      x: 0,
+      y: 7,
+      width: "100%",
+      height: aiSummary.height,
+    });
+    resultsStartY = 7 + Number(aiSummary.height) + 1;
+  }
+
+  renderDivider(renderer, 5);
+  const scrollboxY = aiSummary.content ? 7 + Number(aiSummary.height) + 1 : 6;
+  const resultsScrollbox = new ScrollBoxRenderable(renderer, {
+    id: resultsScrollboxId,
+    width: "100%",
+    height: Math.max(process.stdout.rows - scrollboxY - 1, 5),
+  })
+  resultsScrollbox.x = 1
+  resultsScrollbox.y = scrollboxY
+
+  positionResults(searchResults, 1);
+
   for (const result of searchResults) {
-    renderer.root.add(result);
-    result.attributes = TextAttributes.BOLD;
-    result.fg = blue;
+    resultsScrollbox.add(result);
+    result.attributes = 0;
+    result.fg = textPrimary;
   }
 
   const selectedResult = searchResults[index];
 
   if (selectedResult) {
-    selectedResult.attributes = TextAttributes.BOLD | TextAttributes.UNDERLINE;
-    selectedResult.fg = red;
+    selectedResult.attributes = TextAttributes.BOLD;
+    selectedResult.fg = selected;
   }
+
+  renderer.root.add(resultsScrollbox)
 
   return "results";
 }

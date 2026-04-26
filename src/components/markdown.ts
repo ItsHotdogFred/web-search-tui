@@ -22,6 +22,8 @@ async function getInitializedTreeSitterClient() {
 }
 
 type CreateMarkdownOptions = {
+  x?: number;
+  y?: number;
   width?: number | string;
   height?: number | string;
   baseUrl?: string;
@@ -118,7 +120,7 @@ export async function createMarkdown(
 
   const markdownOptions: any = {
     // id: id,
-    width: 60,
+    width: (options?.width ?? "100%") as number | "auto" | `${number}%`,
     content: content,
     syntaxStyle,
     fg: RGBA.fromHex("#E6EDF3"),
@@ -140,6 +142,14 @@ export async function createMarkdown(
     width: (options?.width ?? "100%") as number | "auto" | `${number}%`,
     height: (options?.height ?? "100%") as number | "auto" | `${number}%`,
   });
+
+  if (options?.x !== undefined) {
+    scrollbox.x = options.x;
+  }
+
+  if (options?.y !== undefined) {
+    scrollbox.y = options.y;
+  }
 
   const onLinkClick = options?.onLinkClick;
 
