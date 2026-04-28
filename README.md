@@ -1,3 +1,8 @@
+
+
+https://github.com/user-attachments/assets/8f12571b-905f-438d-bc54-282af75ebafe
+
+
 # web search tui
 
 A terminal app for searching the web, reading Wikipedia articles, and previewing any URL, all without leaving your terminal. Built with [OpenTUI](https://git.new/create-tui).
