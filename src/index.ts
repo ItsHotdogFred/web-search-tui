@@ -210,10 +210,7 @@ renderer.keyInput.on("keypress", async (key) => {
       switch (state) {
         case "results": {
           searchIndex += 1;
-          
-          if (searchIndex < 0) {
-            searchIndex = 0;
-          }
+          searchIndex = Math.min(searchIndex, searchResults.length - 1);
 
           const selectedResult = searchResults[searchIndex];
           

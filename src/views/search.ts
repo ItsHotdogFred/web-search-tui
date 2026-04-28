@@ -44,7 +44,7 @@ export function CreateSearchScreen(renderer: any, splashscreenId : any, searchIn
         { backgroundColor: "#0a0a0a",id: searchInputId, alignItems: "center", justifyContent: "center", flexGrow: 1, flexDirection: "column", gap: 2 },
         ASCIIFont({ font: "tiny", text: "OpenSearch" }),
         Box(
-        { backgroundColor: "#1e1e1e", border: ["left", "right"], borderColor: modeColor, padding: 1, height: 5, justifyContent: "flex-start", alignItems: "flex-start", flexDirection: "column", gap: 1 },
+        { backgroundColor: "#1e1e1e", border: ["left", "right"], borderColor: modeColor, padding: 1, width: "80%", height: 5, justifyContent: "flex-start", alignItems: "flex-start", flexDirection: "column", gap: 1 },
         searchInput,
         Text({
             content: hintContent
