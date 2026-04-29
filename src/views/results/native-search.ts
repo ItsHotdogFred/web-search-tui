@@ -20,7 +20,7 @@ export async function handleNativeSearch(ctx: HandlerContext, query: string): Pr
 
   let nativeResults: NativeSearchResult[];
   try {
-    const res = await fetch("http://localhost:3000/api/search", {
+    const res = await fetch("https://native.itsfred.dev/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ search: nativeQuery }),

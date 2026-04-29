@@ -135,7 +135,7 @@ renderer.keyInput.on("keypress", async (key) => {
 
           if (selectedUrl?.startsWith("native:")) {
             const nativeId = selectedUrl.replace("native:", "");
-            const nativeViewUrl = new URL("http://localhost:3000/api/view/")
+            const nativeViewUrl = new URL("https://native.itsfred.dev/api/view/")
             nativeViewUrl.searchParams.set("page", nativeId)
             const res = await fetch(nativeViewUrl)
             const nativeJson = await res.json()

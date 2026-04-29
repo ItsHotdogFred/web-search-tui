@@ -1,145 +1,47 @@
-export const helpcontent : string = `# OpenTUI Markdown Demo
-
-Welcome to the **MarkdownRenderable** showcase! This demonstrates automatic table alignment and syntax highlighting.
-
-## Features
-
-- Automatic **table column alignment** based on content width
-- Proper handling of \`inline code\`, **bold**, and *italic* in tables
-- Multiple syntax themes to choose from
-- Conceal mode hides formatting markers
-
-## Comparison Table
-
-| Feature | Status | Priority | Notes |
-|---|---|---|---|
-| Table alignment | **Done** | High | Uses \`marked\` parser |
-| Conceal mode | *Working* | Medium | Hides \`**\`, \`\`\`\`, etc. |
-| Theme switching | **Done** | Low | Multiple themes available |
-| Unicode support | 日本語 | High | CJK characters |
-
-## Code Examples
-
-Here's how to use it:
-
-\`\`\`typescript
-import { MarkdownRenderable } from "@opentui/core"
-
-const md = new MarkdownRenderable(renderer, {
-  content: "# Hello World",
-  syntaxStyle: mySyntaxStyle,
-  fg: "#24292F",
-  bg: "#FFFFFF",
-  conceal: true, // Hide formatting markers
-})
+export const helpcontent: string = `# web search tui
+A terminal app for searching the web, reading Wikipedia articles, and previewing any URL, all without leaving your terminal. Built with [OpenTUI](https://git.new/create-tui).
+It uses the Exa search API for web results, can fetch and render Wikipedia articles inline, and converts any URL to readable markdown. There is also experimental support for AI summaries of search results via OpenRouter.
+![screenshot placeholder]
+## getting started
+You need [Bun](https://bun.sh) installed.
+\`\`\`bash
+bun install
+bun dev
 \`\`\`
-
-And a JSON configuration example:
-
-\`\`\`json
-{
-  "name": "opentui-markdown-demo",
-  "theme": "github",
-  "features": ["table-alignment", "syntax-highlighting", "conceal-mode"],
-  "streaming": {
-    "enabled": true,
-    "speed": "slowest"
-  }
-}
+Create a \`.env\` file with your API keys:
 \`\`\`
-
-Here's a TSX component example:
-
-\`\`\`tsx
-import React from "react"
-import { useState } from "react"
-
-interface Props {
-  title: string
-  count: number
-}
-
-export const Counter: React.FC<Props> = ({ title, count: initialCount }) => {
-  const [count, setCount] = useState(initialCount)
-
-  return (
-    <div className="counter">
-      <h1>{title}</h1>
-      <p>Count: {count}</p>
-      <button onClick={() => setCount(c => c + 1)}>
-        Increment
-      </button>
-    </div>
-  )
-}
+EXA_API_KEY=your_exa_key
+OPENROUTER_API_KEY=your_openrouter_key
 \`\`\`
-
-## Light Theme Fallback Checks
-
-Press \`T\` until **GitHub Light**. These fences intentionally skip syntax
-highlighting and should still inherit the theme text color.
-
-Unlabeled fenced block:
-
+The Exa key is required. The OpenRouter key is only needed if you enable AI summaries (off by default).
+## usage
+Type a query and hit Enter to search the web. Press Tab to switch between search modes:
+| Mode | What it does |
+|---|---|
+| \`@web\` | Web search using Exa (default) |
+| \`@wikipedia\` or \`@wiki\` | Fetches and renders a Wikipedia article |
+| \`@native\` | Searches via a local companion server |
+You can also paste a full URL to preview any webpage as markdown.
+Arrow keys navigate results, Enter opens a link, Escape goes back. Links inside articles are clickable with the mouse.
+## project structure
 \`\`\`
-this fence has no language tag
-it should stay readable in GitHub Light
+src/
+  index.ts                  App entry, state machine, key bindings
+  components/markdown.ts    Markdown renderer with syntax highlighting
+  info/helpinfo.ts          Help page content
+  views/
+    splashscreen.ts         Splash screen
+    search.ts               Search input
+    results/
+      index.ts              Routes queries to the right handler
+      web-search.ts         Exa web search + AI summary
+      wikipedia.ts          Wikipedia fetch and parse
+      url-preview.ts        URL to markdown conversion
+      native-search.ts      Local server search
+      help.ts               Help screen
 \`\`\`
-
-Unsupported parser fallback:
-
-\`\`\`toml
-title = "GitHub Light"
-status = "fallback text should stay readable"
-\`\`\`
-
-### API Reference
-
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| \`constructor\` | \`ctx, options\` | \`MarkdownRenderable\` | Create new instance |
-| \`clearCache\` | none | \`void\` | Force re-render content |
-
-## Inline Formatting Examples
-
-| Style | Syntax | Rendered |
-|---|---|---|
-| Bold | \`**text**\` | **bold text** |
-| Italic | \`*text*\` | *italic text* |
-| Code | \`code\` | \`inline code\` |
-| Link | \`[text](url)\` | [OpenTUI](https://github.com) |
-
-## Mixed Content
-
-> **Note**: This blockquote contains **bold** and \`code\` formatting.
-> It should render correctly with proper styling.
-
-### Emoji Support
-
-| Emoji | Name | Category |
-|---|---|---|
-| 🚀 | Rocket | Transport |
-| 🎨 | Palette | Art |
-| ⚡ | Lightning | Nature |
-| 🔥 | Fire | Nature |
-
----
-
-## Alignment Examples
-
-| Left | Center | Right |
-|:---|:---:|---:|
-| L1 | C1 | R1 |
-| Left aligned | Centered text | Right aligned |
-| Short | Medium length | Longer content here |
-
-## Performance
-
-The table alignment uses:
-1. AST-based parsing with \`marked\`
-2. Caching for repeated content
-3. Smart width calculation accounting for concealed chars
-
----
-
-*Press \`?\` for keybindings*`
+## ai summaries
+There is a flag \`ENABLE_AI_SUMMARY\` in \`src/views/results/web-search.ts\`. Set it to \`true\` and provide an OpenRouter API key to get a short AI summary at the top of your web search results. Uses \`x-ai/grok-2\` by default.
+## license
+MIT
+`;
