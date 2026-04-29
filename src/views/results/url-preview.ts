@@ -3,11 +3,14 @@ import type { HandlerContext } from "./types";
 import { LAYOUT } from "./types";
 import { renderSearchQuery, renderResultsMeta, renderDivider } from "./helpers";
 
-export async function handleUrlPreview(ctx: HandlerContext, url: string): Promise<void> {
+export async function handleUrlPreview(
+  ctx: HandlerContext,
+  url: string,
+): Promise<void> {
   ctx.aiSummary.content = "";
   ctx.aiSummary.height = 0;
 
-  const markdownUrl = "https://markdown.gonna.party/?url=" + url.trim();
+  const markdownUrl = "https://markdown.itsfred.dev/?url=" + url.trim();
 
   let text: string;
   try {
@@ -16,7 +19,11 @@ export async function handleUrlPreview(ctx: HandlerContext, url: string): Promis
   } catch {
     ctx.renderer.root.remove(ctx.searchInputId);
     renderSearchQuery(ctx.renderer, ctx.aiSummary.query);
-    renderResultsMeta(ctx.renderer, "Failed to load page preview", LAYOUT.META_Y);
+    renderResultsMeta(
+      ctx.renderer,
+      "Failed to load page preview",
+      LAYOUT.META_Y,
+    );
     return;
   }
 
