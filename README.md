@@ -8,8 +8,7 @@ https://github.com/user-attachments/assets/8f12571b-905f-438d-bc54-282af75ebafe
 A terminal app for searching the web, reading Wikipedia articles, and previewing any URL, all without leaving your terminal. Built with [OpenTUI](https://git.new/create-tui).
 
 It uses the Exa search API for web results, can fetch and render Wikipedia articles inline, and converts any URL to readable markdown. There is also experimental support for AI summaries of search results via OpenRouter.
-
-![screenshot placeholder]
+For native search, it uses [Native Pages API](https://github.com/ItsHotdogFred/Native-Pages-API) which I made that uses embeddings for accurate search results.
 
 ## getting started
 
