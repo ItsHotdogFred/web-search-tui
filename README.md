@@ -10,6 +10,12 @@ A terminal app for searching the web, reading Wikipedia articles, and previewing
 It uses the Exa search API for web results, can fetch and render Wikipedia articles inline, and converts any URL to readable markdown. There is also experimental support for AI summaries of search results via OpenRouter.
 For native search, it uses [Native Pages API](https://github.com/ItsHotdogFred/Native-Pages-API) which I made that uses embeddings for accurate search results.
 
+You can test it out using ssh by typing:
+```bash
+ssh -p 2222 root@opensearch.itsfred.dev
+```
+in your terminal
+
 ## getting started
 
 You need [Bun](https://bun.sh) installed.
